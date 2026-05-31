@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Music Store - Web Player</title>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- APPLICATION BODY LAYOUT --- */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 90px); /* Account for persistent bottom player */
+            overflow: hidden;
+            padding: 8px;
+            gap: 8px;
+        }
+
+        /* LEFT SIDEBAR (Navigation & Playlists) */
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-panel {
+            background-color: #121212;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .nav-links a {
+            color: #b3b3b3;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: #ffffff;
+        }
+
+        /* SPOTIFY STYLE SEARCH BAR IN SIDEBAR */
+        .search-wrapper {
+            margin-top: 10px;
+            display: flex;
+            background: #242424;
+            border-radius: 50px;
+            padding: 6px 12px;
+            align-items: center;
+            border: 1px solid transparent;
+        }
+        
+        .search-wrapper:focus-within {
+            border-color: #ffffff;
+        }
+
+        .search-wrapper input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 13px;
+            width: 100%;
+            outline: none;
+        }
+
+        .search-wrapper button {
+            background: transparent;
+            border: none;
+            color: #b3b3b3;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
+        .search-wrapper button:hover {
+            color: #ffffff;
+        }
+
+        /* PLAYLIST FILL BLOCK */
+        .library-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .library-panel h2 {
+            font-size: 15px;
+            color: #b3b3b3;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .playlist-scroll-hub {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* Customized Webkit Scrollbars for Spotify Aesthetic */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-radius: 6px;
+            gap: 12px;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        .playlist-item:hover {
+            background-color: #1a1a1a;
+        }
+
+        .playlist-item img {
+            width: 48px;
+            height: 48px;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        .playlist-meta {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .playlist-meta h4 {
+            font-size: 14px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .playlist-meta p {
+            font-size: 12px;
+            color: #b3b3b3;
+        }
+
+        .btn-remove-track {
+            background: transparent;
+            border: none;
+            color: #b3b3b3;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .btn-remove-track:hover {
+            color: #e91429;
+            transform: scale(1.1);
+        }
+
+        /* MAIN CONTENT AREA CONTAINER */
+        .main-view {
+            flex: 1;
+            background: linear-gradient(to bottom, #22214a, #121212 40%);
+            border-radius: 8px;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .genre-chips-row {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .genre-chip {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+
+        .genre-chip:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-view h2 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 18px;
+            letter-spacing: -0.5px;
+        }
+
+        /* SPOTIFY CARD GRID COMPONENT */
+        .song-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .spotify-card {
+            background: #181818;
+            padding: 16px;
+            border-radius: 8px;
+            transition: background-color 0.3s ease;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .spotify-card:hover {
+            background-color: #282828;
+        }
+
+        .card-image-wrap {
+            position: relative;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .spotify-card img {
+            width: 100%;
+            aspect-ratio: 1/1;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        /* FLOATING GREEN PLAY ACTION HUB */
+        .hover-play-btn {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            width: 48px;
+            height: 48px;
+            background: #1db954;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            border: none;
+            cursor: pointer;
+        }
+
+        .spotify-card:hover .hover-play-btn {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .hover-play-btn:hover {
+            transform: scale(1.05);
+            background: #1ed760;
+        }
+
+        .card-metadata h3 {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-metadata p {
+            font-size: 12px;
+            color: #b3b3b3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 16px;
+            height: 32px;
+            margin-bottom: 12px;
+        }
+
+        .btn-add-library {
+            background: transparent;
+            border: 1px solid #878787;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 6px 12px;
+            border-radius: 20px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            margin-top: auto;
+        }
+
+        .btn-add-library:hover {
+            border-color: #ffffff;
+            transform: scale(1.02);
+        }
+
+        /* --- PERSISTENT BOTTOM MEDIA CONTROLS BAR --- */
+        .bottom-player-bar {
+            height: 90px;
+            background-color: #181818;
+            border-top: 1px solid #282828;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 100;
+        }
+
+        .now-playing-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 30%;
+            min-width: 180px;
+        }
+
+        .now-playing-left img {
+            width: 56px;
+            height: 56px;
+            border-radius: 4px;
+            object-fit: cover;
+            background-color: #282828;
+        }
+
+        .now-playing-meta {
+            overflow: hidden;
+        }
+
+        .now-playing-meta h3 {
+            font-size: 14px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .now-playing-meta p {
+            font-size: 11px;
+            color: #b3b3b3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .center-player-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 40%;
+            max-width: 700px;
+        }
+
+        audio {
+            width: 100%;
+            height: 32px;
+            outline: none;
+        }
+
+        /* Customizing native HTML5 audio styling for dark interface alignment */
+        audio::-webkit-media-controls-enclosure {
+            background-color: #181818;
+        }
+        audio::-webkit-media-controls-panel {
+            color: #ffffff;
+        }
+
+        .right-volume-placeholder {
+            width: 30%;
+            display: flex;
+            justify-content: flex-end;
+            color: #b3b3b3;
+            font-size: 12px;
+        }
+
+        /* --- LOGIN SCREENS OVERLAYS --- */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            transition: opacity 0.4s ease;
+        }
+        .login-box {
+            background: #121212;
+            padding: 40px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border: 1px solid #282828;
+        }
+        .login-box h2 {
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: -1px;
+        }
+        .login-box p {
+            color: #b3b3b3;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: none;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .login-btn:hover {
+            transform: scale(1.03);
+        }
+        .btn-google { background: #ffffff; color: #000000; }
+        .btn-facebook { background: #1877F2; color: white; }
+        .btn-device { background: transparent; color: white; border: 1px solid #727272; }
+        .btn-device:hover { border-color: white; }
+        .brand-footer { margin-top: 25px; font-size: 11px; color: #727272; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+
+<body>
+
+<div id="loginModal" class="login-overlay">
+    <div class="login-box">
+        <h2>Music for everyone.</h2>
+        <p>Log in to discover and save millions of tracks seamlessly.</p>
+        
+        <button class="login-btn btn-google" onclick="handleGoogleLogin()">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.47h4.84c-.21 1.12-.84 2.07-1.79 2.7v2.24h2.9c1.69-1.55 2.69-3.84 2.69-6.57z" fill="#4285F4"/><path d="M9 18c2.43 0 4.47-.8 5.96-2.23l-2.9-2.24c-.8.54-1.84.87-3.06.87-2.35 0-4.34-1.58-5.05-3.71H.92v2.32C2.4 16.03 5.46 18 9 18z" fill="#34A853"/><path d="M3.95 10.69c-.18-.54-.28-1.12-.28-1.69s.1-1.15.28-1.69V4.99H.92A8.99 8.99 0 0 0 0 9c0 1.48.36 2.89.92 4.16l3.03-2.47z" fill="#FBBC05"/><path d="M9 3.58c1.32 0 2.5.45 3.44 1.35L15 2.4A8.99 8.99 0 0 0 9 0C5.46 0 2.4 1.97.92 4.99l3.03 2.32c.71-2.13 2.7-3.71 5.05-3.71z" fill="#EA4335"/></svg>
+            Continue with Google
+        </button>
+
+        <button class="login-btn btn-facebook" onclick="handleFacebookLogin()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            Continue with Facebook
+        </button>
+
+        <button class="login-btn btn-device" onclick="handleDeviceTokenLogin()">
+            Remember this Device
+        </button>
+
+        <div class="brand-footer">Secure Open-Auth Verified Engine</div>
+    </div>
+</div>
+
+<div class="app-container">
+    
+    <div class="sidebar">
+        <div class="sidebar-panel nav-links">
+            <a class="active" onclick="loadGenre('Trending Hits')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20a1 1 0 0 0 1 1h5v-7h4v7h5a1 1 0 0 0 1-1V7.577l-7.5-4.33zm-1.5 16.253v-5h2v5h-2z"/></svg>
+                Home
+            </a>
+            
+            <div class="search-wrapper">
+                <input type="text" id="sidebarSearch" placeholder="What do you want to play?">
+                <button onclick="searchSong(document.getElementById('sidebarSearch').value)">Search</button>
+            </div>
+        </div>
+
+        <div class="sidebar-panel library-panel">
+            <h2>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+                Your Library
+            </h2>
+            <div class="playlist-scroll-hub" id="playlistGrid">
+                <p style="color: #b3b3b3; font-size: 13px; padding: 10px;">Your playlist is empty.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-view">
+        <div class="genre-chips-row" id="genreNav">
+            <span class="genre-chip" onclick="loadGenre('Hindi New Songs')">Hindi</span>
+            <span class="genre-chip" onclick="loadGenre('English Pop Songs')">English Pop</span>
+            <span class="genre-chip" onclick="loadGenre('K-Pop Music Hits')">K-Pop</span>
+            <span class="genre-chip" onclick="loadGenre('Punjabi Latest Songs')">Punjabi</span>
+            <span class="genre-chip" onclick="loadGenre('Rock Classics')">Rock Classics</span>
+            <span class="genre-chip" onclick="loadGenre('Hip-Hop Hits')">Hip-Hop</span>
+            <span class="genre-chip" onclick="loadGenre('Classical Orchestral')">Classical</span>
+        </div>
+
+        <h2 id="sectionTitle">🔥 Trending Music</h2>
+        <div class="song-grid" id="displayGrid"></div>
+    </div>
+</div>
+
+<div class="bottom-player-bar">
+    <div class="now-playing-left">
+        <img id="playerArtwork" src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f" alt="Cover">
+        <div class="now-playing-meta">
+            <h3 id="playerTitle">No Track Selected</h3>
+            <p id="playerArtist">Select a card to play</p>
+        </div>
+    </div>
+
+    <div class="center-player-controls">
+        <audio id="audioEngine" controls autoplay src=""></audio>
+    </div>
+
+    <div class="right-volume-placeholder">
+        <span>🌐 Web App Engine v2.5</span>
+    </div>
+</div>
+
+<script>
+let customPlaylist = [];
+
+window.fbAsyncInit = function() {
+    FB.init({
+      appId      : 'YOUR_FACEBOOK_APP_ID', 
+      cookie     : true,
+      xfbml      : true,
+      version    : 'v18.0'
+    });
+};
+
+function closeLoginScreen() {
+    const modal = document.getElementById("loginModal");
+    modal.style.opacity = "0";
+    setTimeout(() => { modal.style.display = "none"; }, 400);
+}
+
+function handleGoogleLogin() { closeLoginScreen(); }
+function handleFacebookLogin() { closeLoginScreen(); }
+
+function handleDeviceTokenLogin() {
+    let deviceSignature = localStorage.getItem("gms_device_signature");
+    if (!deviceSignature) {
+        deviceSignature = 'DEV-MAC-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+        localStorage.setItem("gms_device_signature", deviceSignature);
+    }
+    closeLoginScreen();
+}
+
+function loadGenre(genreQuery) {
+    document.getElementById("sectionTitle").innerText = genreQuery;
+    searchSong(genreQuery);
+}
+
+function playTrack(audioUrl, title, artist, artworkUrl) {
+    document.getElementById("playerArtwork").src = artworkUrl;
+    document.getElementById("playerTitle").innerText = title;
+    document.getElementById("playerArtist").innerText = artist;
+    
+    const audioEngine = document.getElementById("audioEngine");
+    audioEngine.src = audioUrl;
+    audioEngine.load(); 
+    
+    var playPromise = audioEngine.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(error => { console.log("Playback error context caught:", error); });
+    }
+}
+
+/* --- PLAYLIST WEB-STORAGE ARCHITECTURE ENGINE --- */
+function loadPlaylistFromStorage() {
+    const stored = localStorage.getItem("gms_local_playlist");
+    if(stored) {
+        try { customPlaylist = JSON.parse(stored); } catch(e) { customPlaylist = []; }
+    }
+    renderPlaylistDOM();
+}
+
+function savePlaylistToStorage() {
+    localStorage.setItem("gms_local_playlist", JSON.stringify(customPlaylist));
+    renderPlaylistDOM();
+}
+
+function addToPlaylist(url, title, artist, art, event) {
+    if (event) event.stopPropagation(); // Avoid triggering card selection click triggers
+    const exists = customPlaylist.some(track => track.url === url);
+    if(exists) { return; }
+    
+    customPlaylist.push({ url, title, artist, art });
+    savePlaylistToStorage();
+}
+
+function removeFromPlaylist(url, event) {
+    if (event) event.stopPropagation();
+    customPlaylist = customPlaylist.filter(track => track.url !== url);
+    savePlaylistToStorage();
+}
+
+function renderPlaylistDOM() {
+    const container = document.getElementById("playlistGrid");
+    if(customPlaylist.length === 0) {
+        container.innerHTML = `<p style="color: #b3b3b3; font-size: 13px; padding: 10px;">Your playlist is empty.</p>`;
+        return;
+    }
+    
+    let html = "";
+    customPlaylist.forEach(track => {
+        const safeTitle = track.title.replace(/['"`]/g, "");
+        const safeArtist = track.artist.replace(/['"`]/g, "");
+        
+        html += `
+            <div class="playlist-item" onclick="playTrack('${track.url}', '${safeTitle}', '${safeArtist}', '${track.art}')">
+                <img src="${track.art}" alt="Cover">
+                <div class="playlist-meta">
+                    <h4>${track.title}</h4>
+                    <p>Track</p>
+                </div>
+                <button class="btn-remove-track" onclick="removeFromPlaylist('${track.url}', event)">×</button>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+/* --- APPLE MUSIC API MATCH EXPLORATION QUERY LINES --- */
+async function searchSong(query) {
+    if(!query) return;
+    const grid = document.getElementById("displayGrid");
+    grid.innerHTML = "<p style='color:#b3b3b3; padding: 20px;'>Loading matches...</p>";
+
+    // Clean premium fallback item injection mapping matches
+    let html = `
+        <div class="spotify-card" onclick="playTrack('https://pub-c5e31b5cdafb419a86a69d5d34321308.r2.dev/rubaroo.mp3', 'Rubaroo', 'A.R. Rahman', 'https://img.youtube.com/vi/BrfRB6aTZlM/mqdefault.jpg')">
+            <div class="card-image-wrap">
+                <img src="https://img.youtube.com/vi/BrfRB6aTZlM/mqdefault.jpg" alt="Cover">
+                <button class="hover-play-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+            </div>
+            <div class="card-metadata">
+                <h3>Rubaroo (Roobaroo)</h3>
+                <p>A.R. Rahman / Naresh Iyer</p>
+            </div>
+            <button class="btn-add-library" onclick="addToPlaylist('https://pub-c5e31b5cdafb419a86a69d5d34321308.r2.dev/rubaroo.mp3', 'Rubaroo', 'A.R. Rahman', 'https://img.youtube.com/vi/BrfRB6aTZlM/mqdefault.jpg', event)">Add to Library</button>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=24`);
+        const data = await response.json();
+
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(track => {
+                if(track.previewUrl) {
+                    const title = track.trackName;
+                    const artist = track.artistName;
+                    const coverArt = track.artworkUrl100 ? track.artworkUrl100.replace("100x100bb.jpg", "400x400bb.jpg") : "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f";
+                    
+                    let streamUrl = track.previewUrl;
+                    if (streamUrl.startsWith("http://")) {
+                        streamUrl = streamUrl.replace("http://", "https://");
+                    }
+
+                    const secureTitle = title.replace(/['"`]/g, "");
+                    const secureArtist = artist.replace(/['"`]/g, "");
+
+                    html += `
+                        <div class="spotify-card" onclick="playTrack('${streamUrl}', '${secureTitle}', '${secureArtist}', '${coverArt}')">
+                            <div class="card-image-wrap">
+                                <img src="${coverArt}" onerror="this.src='https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f'" alt="Cover Art">
+                                <button class="hover-play-btn">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+                                </button>
+                            </div>
+                            <div class="card-metadata">
+                                <h3>${title}</h3>
+                                <p>${artist}</p>
+                            </div>
+                            <button class="btn-add-library" onclick="addToPlaylist('${streamUrl}', '${secureTitle}', '${secureArtist}', '${coverArt}', event)">Add to Library</button>
+                        </div>
+                    `;
+                }
+            });
+        } else {
+            html += "<p style='color:#b3b3b3; padding:20px;'>No tracks found.</p>";
+        }
+        grid.innerHTML = html;
+    } catch (error) {
+        console.error("Discovery Engine Link Block Error:", error);
+        grid.innerHTML = html;
+    }
+}
+
+window.onload = () => {
+    if(localStorage.getItem("gms_device_signature")) {
+        document.getElementById("loginModal").style.display = "none";
+    }
+    loadPlaylistFromStorage();
+    loadGenre('Trending Hits');
+};
+</script>
+</body>
+</html>
